@@ -10,7 +10,7 @@ Edit the following placeholders before build.
 
 // ── OpenAI (ChatGPT) ──
 // Create an API key at https://platform.openai.com/  (keep it secret!)
-#define OPENAI_API_KEY   "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"
+#define OPENAI_API_KEY   "${OPENAI_API_KEY}"
 // Model for chat: choose a lightweight reasoning-capable model
 #define OPENAI_CHAT_MODEL  "gpt-4o-mini"
 
@@ -58,3 +58,4 @@ Edit the following placeholders before build.
 
 // ── General ──
 #define DEVICE_NAME  "LONG GPT"
+
