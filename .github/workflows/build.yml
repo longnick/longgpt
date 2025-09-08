@@ -1,70 +1,50 @@
-name: Build LONG GPT (ESP32-S3)
-
+name: CI
 on:
-  workflow_dispatch:
+  push:
+  pull_request:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    env:
+      PLATFORMIO_PKG_DOWNLOAD_TIMEOUT: 600
+      PIO_HOME_DIR: ~/.platformio
+
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
-      - name: Install PlatformIO & esptool
-        run: |
-          pip install -U platformio esptool
-          pio pkg update
-
-      - name: Generate include/config.h from template + secrets
-        run: |
-          mkdir -p include
-          sed -e "s|\${WIFI_SSID}|${{ secrets.WIFI_SSID }}|g" \
-              -e "s|\${WIFI_PASSWORD}|${{ secrets.WIFI_PASSWORD }}|g" \
-              -e "s|\${OPENAI_API_KEY}|${{ secrets.OPENAI_API_KEY }}|g" \
-              -e "s|\${OWM_API_KEY}|${{ secrets.OWM_API_KEY }}|g" \
-              include/config.h.template > include/config.h
-          echo "---- include/config.h ----"
-          grep -v OPENAI_API_KEY include/config.h || true
-      - name: Clean caches and update platform
-        run: |
-          pio system prune -f
-          pio platform update espressif32
-
-      - name: Build firmware (PlatformIO)
-        run: |
-          pio run -e esp32s3
-      - name: Pre-install Arduino_GFX from GitHub (fallback)
-        run: |
-          pio lib -g install https://github.com/moononournation/Arduino_GFX.git#v1.4.8
-          pio lib -g install "bblanchon/ArduinoJson@^7.1.0"
-          pio lib -g install "arduino-libraries/NTPClient@^3.2.1"
-          pio lib -g install "arduino-libraries/ArduinoHttpClient@^0.6.1"
-          pio lib -g install "earlephilhower/ESP8266Audio@^1.9.7"
-
-      - name: Collect artifacts
-        run: |
-          mkdir -p artifacts
-          cp .pio/build/esp32s3/firmware.bin artifacts/app.bin
-          # Tìm bootloader/partitions mà PlatformIO sinh
-          find .pio -name "*bootloader*.bin" -exec cp {} artifacts/bootloader.bin \; -quit || true
-          find .pio -name "*partitions*.bin" -exec cp {} artifacts/partitions.bin \; -quit || true
-          # Gộp thành merged.bin nếu đủ app.bin (và boot/part nếu có)
-          BOOTLOADER=""; PARTITIONS=""; APP=""
-          [ -f artifacts/bootloader.bin ] && BOOTLOADER="0x0000 artifacts/bootloader.bin"
-          [ -f artifacts/partitions.bin ] && PARTITIONS="0x8000 artifacts/partitions.bin"
-          [ -f artifacts/app.bin ] && APP="0x10000 artifacts/app.bin"
-          if [ -n "$APP" ]; then
-            esptool.py --chip esp32s3 merge_bin -o artifacts/merged.bin $BOOTLOADER $PARTITIONS $APP
-          fi
-          ls -lh artifacts
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v4
         with:
-          name: long-gpt-esp32s3
-          path: artifacts/*
+          path: |
+            ~/.platformio
+            .pio
+          key: pio-${{ runner.os }}-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+
+      - name: Install PlatformIO Core
+        run: |
+          python -m pip install -U pip
+          pip install -U platformio
+
+      # Quan trọng: preinstall để tránh UnknownPackageError trên CI
+      - name: Preinstall espressif32 toolchains & framework
+        run: |
+          pio pkg update -g
+          # Lock phiên bản platform (ổn định)
+          pio platform install espressif32@6.9.0
+          # Nếu dùng Arduino, preinstall luôn framework (tùy code của bạn)
+          pio pkg install -g --platform espressif32 --framework arduino
+          # Nếu code dùng ESP-IDF, đổi dòng trên thành:
+          # pio pkg install -g --platform espressif32 --framework espidf
+
+      - name: Build (all envs)
+        run: pio run -v
