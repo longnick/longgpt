@@ -160,7 +160,17 @@ static void connectWiFi()
 // ── Setup ──
 void setup() {
   Serial.begin(115200);
-  delay(200);
+  WiFi.begin(ssid, pass);
+  while (WiFi.status() != WL_CONNECTED) { delay(200); }
+  timeClient.begin();
+  timeClient.update();
+  Serial.println(timeClient.getFormattedTime());
+}
+
+void loop() {
+  timeClient.update();
+  delay(1000);
+}
 
   pinMode(BTN_TALK, INPUT_PULLUP);
   // Backlight via native LEDC (IDF) for maximum compatibility
