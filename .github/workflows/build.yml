@@ -34,6 +34,13 @@ jobs:
       - name: Build firmware (PlatformIO)
         run: |
           pio run -e esp32s3
+      - name: Pre-install Arduino_GFX from GitHub (fallback)
+        run: |
+          pio lib -g install https://github.com/moononournation/Arduino_GFX.git#v1.4.8
+          pio lib -g install "bblanchon/ArduinoJson@^7.1.0"
+          pio lib -g install "arduino-libraries/NTPClient@^3.2.1"
+          pio lib -g install "arduino-libraries/ArduinoHttpClient@^0.6.1"
+          pio lib -g install "earlephilhower/ESP8266Audio@^1.9.7"
 
       - name: Collect artifacts
         run: |
