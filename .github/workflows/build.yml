@@ -30,6 +30,10 @@ jobs:
               include/config.h.template > include/config.h
           echo "---- include/config.h ----"
           grep -v OPENAI_API_KEY include/config.h || true
+      - name: Clean caches and update platform
+        run: |
+          pio system prune -f
+          pio platform update espressif32
 
       - name: Build firmware (PlatformIO)
         run: |
