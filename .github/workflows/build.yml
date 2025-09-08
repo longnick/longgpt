@@ -1,0 +1,59 @@
+name: Build LONG GPT (ESP32-S3)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PlatformIO & esptool
+        run: |
+          pip install -U platformio esptool
+          pio pkg update
+
+      - name: Generate include/config.h from template + secrets
+        run: |
+          mkdir -p include
+          sed -e "s|\${WIFI_SSID}|${{ secrets.WIFI_SSID }}|g" \
+              -e "s|\${WIFI_PASSWORD}|${{ secrets.WIFI_PASSWORD }}|g" \
+              -e "s|\${OPENAI_API_KEY}|${{ secrets.OPENAI_API_KEY }}|g" \
+              -e "s|\${OWM_API_KEY}|${{ secrets.OWM_API_KEY }}|g" \
+              include/config.h.template > include/config.h
+          echo "---- include/config.h ----"
+          grep -v OPENAI_API_KEY include/config.h || true
+
+      - name: Build firmware (PlatformIO)
+        run: |
+          pio run -e esp32s3
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts
+          cp .pio/build/esp32s3/firmware.bin artifacts/app.bin
+          # Tìm bootloader/partitions mà PlatformIO sinh
+          find .pio -name "*bootloader*.bin" -exec cp {} artifacts/bootloader.bin \; -quit || true
+          find .pio -name "*partitions*.bin" -exec cp {} artifacts/partitions.bin \; -quit || true
+          # Gộp thành merged.bin nếu đủ app.bin (và boot/part nếu có)
+          BOOTLOADER=""; PARTITIONS=""; APP=""
+          [ -f artifacts/bootloader.bin ] && BOOTLOADER="0x0000 artifacts/bootloader.bin"
+          [ -f artifacts/partitions.bin ] && PARTITIONS="0x8000 artifacts/partitions.bin"
+          [ -f artifacts/app.bin ] && APP="0x10000 artifacts/app.bin"
+          if [ -n "$APP" ]; then
+            esptool.py --chip esp32s3 merge_bin -o artifacts/merged.bin $BOOTLOADER $PARTITIONS $APP
+          fi
+          ls -lh artifacts
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: long-gpt-esp32s3
+          path: artifacts/*
