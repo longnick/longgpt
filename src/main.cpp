@@ -11,6 +11,22 @@
 #include <time.h>
 #include "config.h"
 #include <driver/ledc.h>
+#include <AudioGeneratorMP3.h>
+#include <AudioOutputI2S.h>
+#include <AudioFileSourcePROGMEM.h>
+
+extern const uint8_t mp3data[] PROGMEM;  // your MP3 bytes
+AudioGeneratorMP3 mp3;
+AudioOutputI2S out;
+AudioFileSourcePROGMEM src(mp3data, sizeof(mp3data));
+
+void setup() {
+  out.SetPinout(…, …, …);  // your BCK/LRCK/DOUT pins
+  mp3.begin(&src, &out);
+}
+void loop() {
+  if (mp3.isRunning()) mp3.loop();
+}
 
 // Display
 #include <Arduino_GFX_Library.h>
